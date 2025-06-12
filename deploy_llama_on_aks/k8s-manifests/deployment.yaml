@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phi4-deployment
+  namespace: phi4-inference
+  labels:
+    app: phi4
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: phi4
+  template:
+    metadata:
+      labels:
+        app: phi4
+    spec:
+      containers:
+      - name: llamafactory
+        image: ${ACR_LOGIN_SERVER}/llamafactory:latest
+        ports:
+        - containerPort: 8000
+          name: api
+        - containerPort: 7860
+          name: webui
+        env:
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
+        - name: HF_HOME
+          value: "/app/models"
+        - name: HF_HUB_CACHE
+          value: "/app/models"
+        envFrom:
+        - configMapRef:
+            name: phi4-config
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - |
+          # 启动 API 服务
+          llamafactory-cli api \
+            --model_name_or_path $(MODEL_NAME) \
+            --template $(TEMPLATE) \
+            --quantization_bit $(QUANTIZATION_BIT) \
+            --host $(API_HOST) \
+            --port $(API_PORT) &
+
+          # 启动 Web UI
+          llamafactory-cli webui \
+            --host $(WEBUI_HOST) \
+            --port $(WEBUI_PORT) &
+
+          # 保持容器运行
+          wait
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "2"
+            nvidia.com/gpu: 1
+          limits:
+            memory: "16Gi"
+            cpu: "4"
+            nvidia.com/gpu: 1
+        volumeMounts:
+        - name: model-cache
+          mountPath: /app/models
+        - name: shm
+          mountPath: /dev/shm
+        readinessProbe:
+          httpGet:
+            path: /docs
+            port: 8000
+          initialDelaySeconds: 300
+          periodSeconds: 30
+          timeoutSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /docs
+            port: 8000
+          initialDelaySeconds: 600
+          periodSeconds: 60
+          timeoutSeconds: 30
+      volumes:
+      - name: model-cache
+        emptyDir:
+          sizeLimit: 50Gi
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 8Gi
+      tolerations:
+      - key: "sku"
+        operator: "Equal"
+        value: "gpu"
+        effect: "NoSchedule"
+      nodeSelector:
+        accelerator: nvidia

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llama-config
+  namespace: llama-inference
+data:
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  WEBUI_HOST: "0.0.0.0" 
+  WEBUI_PORT: "7860"
+  MODEL_NAME: "your-model-name"  # 替换为您的模型名称
+  ADAPTER_NAME: "your-adapter-path"  # 如果有微调适配器的话
+  QUANTIZATION_BIT: "4"
+  TEMPLATE: "default"
+  HF_ENDPOINT: "https://hf-mirror.com"
